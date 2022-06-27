@@ -3,7 +3,7 @@ IPADDR=$(hostname -I | awk '{print $1}')
 #Basic URL to the Webserver which serving the required files
 WEBSTOREURL=
 MANAGING_USER=
-#Key to write the IP of this Host into the serverlist.txt
+#Path to the Provision Key to write the IP of this Host into the serverlist.txt
 PROVISIONKEY=
 #NAS
 NAS=
