@@ -33,9 +33,14 @@ sudo ln -s /etc/phpmyadmin/apache.conf /etc/apache2/conf-available/phpmyadmin.co
 sudo a2enconf phpmyadmin
 sudo systemctl reload apache2
 
+# Allow root user access from phpMyAdmin
+mysql -u root -p$mysql_root_password -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY '$mysql_root_password';"
+mysql -u root -p$mysql_root_password -e "FLUSH PRIVILEGES;"
+
 # Test the installation
 echo "LAMP stack with MariaDB and phpMyAdmin is installed. You can access phpMyAdmin at http://localhost/phpmyadmin"
 echo "You can access your web server at http://localhost/"
+echo "You can access phpmyadmin at http://$IP/phpmyadmin" 
 
 # Clean up
 sudo apt autoremove -y
