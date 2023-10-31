@@ -48,9 +48,5 @@ echo "LAMP stack with MariaDB and phpMyAdmin is installed. You can access phpMyA
 echo "You can access your web server at http://$ip_address/"
 
 # Clean up
-rm -- "$0"
-
-
-# Clean up
 sudo apt autoremove -y
 sudo apt autoclean -y
