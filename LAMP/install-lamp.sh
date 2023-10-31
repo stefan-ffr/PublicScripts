@@ -10,9 +10,9 @@ sudo apt update
 # Install Apache
 sudo apt install -y apache2
 
-# Install MySQL and set the root password
-sudo debconf-set-selections <<< "mysql-server mysql-server/root_password password $mysql_root_password"
-sudo debconf-set-selections <<< "mysql-server mysql-server/root_password_again password $mysql_root_password"
+# Install MariaDB and set the root password
+sudo debconf-set-selections <<< "mariadb-server-10.5 mysql-server/root_password password $mysql_root_password"
+sudo debconf-set-selections <<< "mariadb-server-10.5 mysql-server/root_password_again password $mysql_root_password"
 sudo apt install -y mariadb-server
 
 # Install PHP and required modules
@@ -25,9 +25,18 @@ sudo systemctl restart apache2
 # Open the firewall for Apache
 sudo ufw allow in "Apache Full"
 
+# Install phpMyAdmin
+sudo apt install -y phpmyadmin
+
+# Configure Apache to work with phpMyAdmin
+sudo ln -s /etc/phpmyadmin/apache.conf /etc/apache2/conf-available/phpmyadmin.conf
+sudo a2enconf phpmyadmin
+sudo systemctl reload apache2
+
 # Test the installation
-echo "LAMP stack is installed and running. You can access your web server at http://localhost/"
+echo "LAMP stack with MariaDB and phpMyAdmin is installed. You can access phpMyAdmin at http://localhost/phpmyadmin"
+echo "You can access your web server at http://localhost/"
 
 # Clean up
-rm -- "$0"
-
+sudo apt autoremove -y
+sudo apt autoclean -y
