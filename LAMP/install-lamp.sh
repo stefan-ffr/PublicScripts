@@ -38,9 +38,8 @@ mysql -u root -p$mysql_root_password -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'
 mysql -u root -p$mysql_root_password -e "FLUSH PRIVILEGES;"
 
 # Test the installation
-echo "LAMP stack with MariaDB and phpMyAdmin is installed. You can access phpMyAdmin at http://localhost/phpmyadmin"
-echo "You can access your web server at http://localhost/"
-echo "You can access phpmyadmin at http://$IP/phpmyadmin" 
+echo "LAMP stack with MariaDB and phpMyAdmin is installed. You can access phpMyAdmin at http://$IP/phpmyadmin"
+echo "You can access your web server at http://$IP/"
 
 # Clean up
 sudo apt autoremove -y
