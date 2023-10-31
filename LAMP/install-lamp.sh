@@ -13,7 +13,7 @@ sudo apt install -y apache2
 # Install MySQL and set the root password
 sudo debconf-set-selections <<< "mysql-server mysql-server/root_password password $mysql_root_password"
 sudo debconf-set-selections <<< "mysql-server mysql-server/root_password_again password $mysql_root_password"
-sudo apt install -y mysql-server
+sudo apt install -y mariadb-server
 
 # Install PHP and required modules
 sudo apt install -y php libapache2-mod-php php-mysql
