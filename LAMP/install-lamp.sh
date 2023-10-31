@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Prompt for MySQL root password
-read -s -p "Enter MySQL root password: " mysql_root_password
+read -p "Enter MySQL root password: " -s mysql_root_password
 echo
 
 # Update the package list
@@ -23,10 +23,11 @@ sudo a2enmod php
 sudo systemctl restart apache2
 
 # Open the firewall for Apache
-#sudo ufw allow in "Apache Full"
+sudo ufw allow in "Apache Full"
 
 # Test the installation
 echo "LAMP stack is installed and running. You can access your web server at http://localhost/"
 
 # Clean up
 rm -- "$0"
+
