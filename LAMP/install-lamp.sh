@@ -40,7 +40,7 @@ sudo a2enconf phpmyadmin
 sudo systemctl reload apache2
 
 # Allow root user access from phpMyAdmin
-mysql -u root -p$mysql_root_password -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'$ip_address' IDENTIFIED BY '$mysql_root_password';"
+mysql -u root -p$mysql_root_password -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY '$mysql_root_password';"
 mysql -u root -p$mysql_root_password -e "FLUSH PRIVILEGES;"
 
 # Test the installation
