@@ -1,7 +1,13 @@
 #!/bin/bash
 
+# Prompt for the network interface name
+read -p "Enter the network interface name (e.g., eth0): " network_interface
+
+# Get the IP address of the specified network interface
+ip_address=$(ip -o -4 addr show $network_interface | awk '{print $4}' | cut -d'/' -f1)
+
 # Prompt for MySQL root password
-read -p "Enter MySQL root password: " -s mysql_root_password
+read -s -p "Enter MySQL root password: " -s mysql_root_password
 echo
 
 # Update the package list
@@ -34,12 +40,16 @@ sudo a2enconf phpmyadmin
 sudo systemctl reload apache2
 
 # Allow root user access from phpMyAdmin
-mysql -u root -p$mysql_root_password -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY '$mysql_root_password';"
+mysql -u root -p$mysql_root_password -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'$ip_address' IDENTIFIED BY '$mysql_root_password';"
 mysql -u root -p$mysql_root_password -e "FLUSH PRIVILEGES;"
 
 # Test the installation
-echo "LAMP stack with MariaDB and phpMyAdmin is installed. You can access phpMyAdmin at http://$IP/phpmyadmin"
-echo "You can access your web server at http://$IP/"
+echo "LAMP stack with MariaDB and phpMyAdmin is installed. You can access phpMyAdmin at http://$ip_address/phpmyadmin"
+echo "You can access your web server at http://$ip_address/"
+
+# Clean up
+rm -- "$0"
+
 
 # Clean up
 sudo apt autoremove -y
