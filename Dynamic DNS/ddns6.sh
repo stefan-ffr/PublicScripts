@@ -1,12 +1,13 @@
 #!/bin/bash
+source /.env
 
 # Check for current external IP
 IP=`curl v6.ipinfo.io/ip`
 
 # Set Cloudflare API
-URL="https://api.cloudflare.com/client/v4/zones/215ddf1f01bb8053e0cc9bdeaa924435/dns_records/f83496903da698853074223888ad8337"
-TOKEN="CdHdo8fSjsmoTOUEn4ztYTzzSvC1Ly8M11ENDs5s"
-NAME="r9laptop.ip.juroct.net"
+URL="https://api.cloudflare.com/client/v4/zones/$ZONEID/dns_records/$RECORDID"
+TOKEN="$TOKEN"
+NAME="$FQDN"
 
 # Connect to Cloudflare
 cf() {
