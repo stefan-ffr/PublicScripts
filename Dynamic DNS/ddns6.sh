@@ -5,9 +5,8 @@ source /.env
 IP=`curl v6.ipinfo.io/ip`
 
 # Set Cloudflare API
-URL="https://api.cloudflare.com/client/v4/zones/$ZONEID/dns_records/$RECORDID"
-TOKEN="$TOKEN"
-NAME="$FQDN"
+URL="https://api.cloudflare.com/client/v4/zones/${ZONEID}/dns_records/${RECORDID}"
+NAME="${FQDN}"
 
 # Connect to Cloudflare
 cf() {
