@@ -14,9 +14,16 @@ if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
     Start-Process -FilePath $InstallerPath -ArgumentList "/VERYSILENT" -Wait
     Remove-Item $InstallerPath
 
+    # Add Git to PATH if necessary
+    $gitPath = "C:\Program Files\Git\cmd"
+    if (-not ($env:Path -split ";" | ForEach-Object { $_ -like "*Git*" })) {
+        [System.Environment]::SetEnvironmentVariable("Path", "$env:Path;$gitPath", [System.EnvironmentVariableTarget]::Machine)
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
+    }
+
     # Verify installation
     if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
-        Write-Host "Failed to install Git. Exiting." -ForegroundColor Red
+        Write-Host "Failed to install Git. Please check the installation manually." -ForegroundColor Red
         Exit
     }
     Write-Host "Git installed successfully." -ForegroundColor Green
