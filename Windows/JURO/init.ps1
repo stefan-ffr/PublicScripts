@@ -4,6 +4,24 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     Exit
 }
 
+# Check if Git is installed
+if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
+    Write-Host "Git is not installed. Installing..." -ForegroundColor Yellow
+
+    # Download and install Git
+    $InstallerPath = "$env:TEMP\Git-Installer.exe"
+    Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/latest/download/Git-2.42.0-64-bit.exe" -OutFile $InstallerPath
+    Start-Process -FilePath $InstallerPath -ArgumentList "/VERYSILENT" -Wait
+    Remove-Item $InstallerPath
+
+    # Verify installation
+    if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
+        Write-Host "Failed to install Git. Exiting." -ForegroundColor Red
+        Exit
+    }
+    Write-Host "Git installed successfully." -ForegroundColor Green
+}
+
 # Prompt user to select a subfolder
 $userFolder = Read-Host "Please enter the name of the subfolder to process"
 
