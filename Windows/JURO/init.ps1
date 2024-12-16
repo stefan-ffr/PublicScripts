@@ -4,28 +4,11 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     Exit
 }
 
-# Check if PowerShell is already installed
-if (-not (Get-Command "pwsh" -ErrorAction SilentlyContinue)) {
-    Write-Host "PowerShell is not installed. Installing..." -ForegroundColor Yellow
-    # Download and install PowerShell
-    $InstallerPath = "$env:TEMP\PowerShell-Installer.msi"
-    Invoke-WebRequest -Uri "https://github.com/PowerShell/PowerShell/releases/latest/download/PowerShell-7.3.7-win-x64.msi" -OutFile $InstallerPath
-    Start-Process msiexec.exe -ArgumentList "/i", $InstallerPath, "/quiet", "/norestart" -Wait
-    Remove-Item $InstallerPath
-
-    # Verify installation
-    if (-not (Get-Command "pwsh" -ErrorAction SilentlyContinue)) {
-        Write-Host "Failed to install PowerShell. Exiting." -ForegroundColor Red
-        Exit
-    }
-    Write-Host "PowerShell installed successfully." -ForegroundColor Green
-}
-
 # Prompt user to select a subfolder
 $userFolder = Read-Host "Please enter the name of the subfolder to process"
 
 # Clone only the specified subfolder from the repository
-$tempFolder = "$env:TEMP\PublicScripts\Windows\JURO\$userFolder"
+$tempFolder = "$env:TEMP\PublicScripts\$userFolder"
 if (Test-Path $tempFolder) {
     Remove-Item -Recurse -Force $tempFolder
 }
