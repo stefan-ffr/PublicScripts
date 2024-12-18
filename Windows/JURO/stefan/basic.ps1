@@ -11,11 +11,9 @@ if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
 # Liste der wichtigsten Programme
 $programme = @(
     "googlechrome",
-    "firefox",
     "7zip",
-    "git",
-    "vscode",
-    "notepadplusplus"
+    "notepadplusplus",
+    "bitwarden"
 )
 
 # Programme installieren
