@@ -1,0 +1,93 @@
+version: '3.9'
+
+# Network configuration using macvlan
+# Each container gets its own IP address on your local network
+networks:
+  windows_network:
+    driver: macvlan
+    driver_opts:
+      parent: ${NETWORK_INTERFACE:-eth0}  # Change to your network interface (eth0, ens18, etc.)
+    ipam:
+      config:
+        - subnet: ${NETWORK_SUBNET:-192.168.1.0/24}
+          gateway: ${NETWORK_GATEWAY:-192.168.1.1}
+          ip_range: ${NETWORK_IP_RANGE:-192.168.1.128/27}  # Reserve 32 IPs for containers
+
+services:
+  # Windows 11 Container for User 1
+  windows-user1:
+    image: dockurr/windows
+    container_name: windows-user1
+    hostname: win11-user1
+    environment:
+      VERSION: "win11"
+      DISK_SIZE: "${DISK_SIZE:-64G}"
+      RAM_SIZE: "${RAM_SIZE_USER1:-6G}"
+      CPU_CORES: "${CPU_CORES_USER1:-2}"
+    devices:
+      - /dev/kvm           # KVM for hardware virtualization
+      - /dev/net/tun       # TUN device for networking
+    cap_add:
+      - NET_ADMIN          # Network administration capabilities
+    networks:
+      windows_network:
+        ipv4_address: ${IP_USER1:-192.168.1.130}
+    volumes:
+      - ${STORAGE_PATH:-./storage}/user1:/storage  # Persistent storage for Windows installation
+    stop_grace_period: 2m  # Give Windows time to shut down properly
+    restart: unless-stopped
+    labels:
+      - "user=user1"
+      - "description=Windows 11 Pro for User 1"
+
+  # Windows 11 Container for User 2
+  windows-user2:
+    image: dockurr/windows
+    container_name: windows-user2
+    hostname: win11-user2
+    environment:
+      VERSION: "win11"
+      DISK_SIZE: "${DISK_SIZE:-64G}"
+      RAM_SIZE: "${RAM_SIZE_USER2:-6G}"
+      CPU_CORES: "${CPU_CORES_USER2:-2}"
+    devices:
+      - /dev/kvm
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    networks:
+      windows_network:
+        ipv4_address: ${IP_USER2:-192.168.1.131}
+    volumes:
+      - ${STORAGE_PATH:-./storage}/user2:/storage
+    stop_grace_period: 2m
+    restart: unless-stopped
+    labels:
+      - "user=user2"
+      - "description=Windows 11 Pro for User 2"
+
+  # Windows 11 Container for User 3
+  windows-user3:
+    image: dockurr/windows
+    container_name: windows-user3
+    hostname: win11-user3
+    environment:
+      VERSION: "win11"
+      DISK_SIZE: "${DISK_SIZE:-64G}"
+      RAM_SIZE: "${RAM_SIZE_USER3:-6G}"
+      CPU_CORES: "${CPU_CORES_USER3:-2}"
+    devices:
+      - /dev/kvm
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    networks:
+      windows_network:
+        ipv4_address: ${IP_USER3:-192.168.1.132}
+    volumes:
+      - ${STORAGE_PATH:-./storage}/user3:/storage
+    stop_grace_period: 2m
+    restart: unless-stopped
+    labels:
+      - "user=user3"
+      - "description=Windows 11 Pro for User 3"
