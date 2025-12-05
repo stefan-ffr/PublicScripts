@@ -6,39 +6,58 @@
 #
 
 ##########################################################################################################################################
-# CONFIGURATION - CUSTOMIZE THESE VARIABLES
+# CONFIGURATION - Load from .env file or use defaults
 ##########################################################################################################################################
 
+# Get the actual user who invoked sudo (not root)
+# Determine the user's home directory for .env file location
+if [ -n "$SUDO_USER" ]; then
+    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+else
+    USER_HOME="$HOME"
+fi
+
+# Default .env file location in user's home directory
+DEFAULT_ENV_FILE="$USER_HOME/.env"
+
+# Check if .env file exists and load it
+if [ -f "$DEFAULT_ENV_FILE" ]; then
+    echo -e "${GREEN}Loading configuration from: $DEFAULT_ENV_FILE${NC}"
+    # Source the .env file to load all variables
+    source "$DEFAULT_ENV_FILE"
+else
+    echo -e "${YELLOW}No .env file found at $DEFAULT_ENV_FILE${NC}"
+    echo -e "${YELLOW}Tip: Create $DEFAULT_ENV_FILE to save your configuration${NC}"
+fi
+
 # Samba server hostname or IP address
-SAMBA_SERVER="your-nas-server.local"
+# Can be overridden in .env file
+SAMBA_SERVER="${SAMBA_SERVER:-your-nas-server.local}"
 
 # Samba username for authentication
-SAMBA_USER="your-username"
+# Can be overridden in .env file
+SAMBA_USER="${SAMBA_USER:-your-username}"
 
 # Samba workgroup/domain (usually WORKGROUP for home networks)
-SAMBA_WORKGROUP="WORKGROUP"
+# Can be overridden in .env file
+SAMBA_WORKGROUP="${SAMBA_WORKGROUP:-WORKGROUP}"
 
 # Base directory where shares will be mounted
-# Default: /media/samba/
-MOUNT_BASE="/media/samba"
-
-# Optional: Path to password file
-# If set, the password will be read from this file instead of prompting
-# File should contain only the password (no username or other data)
-# IMPORTANT: Set file permissions to 600 (readable only by owner)
-# Default: Checks ~/.samba-password (user's home directory)
-# Example: SAMBA_PASSWORD_FILE="/etc/samba-password"
-SAMBA_PASSWORD_FILE=""
+# Can be overridden in .env file
+MOUNT_BASE="${MOUNT_BASE:-/media/samba}"
 
 # Define your Samba shares as an array
 # Format: "share_name:mount_folder_name:bookmark_display_name"
-# Example: "photos:Photos:NAS Photos"
-SHARES=(
-    "public:Public:Public Share"
-    "documents:Documents:My Documents"
-    "media:Media:Media Files"
-    "backups:Backups:Backup Storage"
-)
+# Can be overridden in .env file as SHARES=("share1:folder1:name1" "share2:folder2:name2")
+if [ -z "${SHARES+x}" ]; then
+    # Default shares if not defined in .env
+    SHARES=(
+        "public:Public:Public Share"
+        "documents:Documents:My Documents"
+        "media:Media:Media Files"
+        "backups:Backups:Backup Storage"
+    )
+fi
 
 ##########################################################################################################################################
 # SCRIPT START - DO NOT MODIFY BELOW UNLESS YOU KNOW WHAT YOU'RE DOING
@@ -71,65 +90,21 @@ if ! command -v mount.cifs &> /dev/null; then
     echo -e "${GREEN}cifs-utils installed successfully${NC}"
 fi
 
-# Get the actual user who invoked sudo (not root)
-# Determine the user's home directory
-if [ -n "$SUDO_USER" ]; then
-    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-else
-    USER_HOME="$HOME"
-fi
-
-# Default password file location in user's home directory
-DEFAULT_PASSWORD_FILE="$USER_HOME/.samba-password"
-
-# Determine which password file to use
-if [ -n "$SAMBA_PASSWORD_FILE" ]; then
-    # User has configured a custom password file path
-    PASSWORD_FILE_TO_USE="$SAMBA_PASSWORD_FILE"
-elif [ -f "$DEFAULT_PASSWORD_FILE" ]; then
-    # Use default location if it exists
-    PASSWORD_FILE_TO_USE="$DEFAULT_PASSWORD_FILE"
-else
-    # No password file available
-    PASSWORD_FILE_TO_USE=""
-fi
-
-# Get Samba password - either from file or prompt
-if [ -n "$PASSWORD_FILE_TO_USE" ] && [ -f "$PASSWORD_FILE_TO_USE" ]; then
-    # Password file exists
-    echo -e "${GREEN}Reading password from file: $PASSWORD_FILE_TO_USE${NC}"
-
-    # Check file permissions for security
-    # File should be readable only by owner (600 or 400)
-    FILE_PERMS=$(stat -c "%a" "$PASSWORD_FILE_TO_USE")
-    if [ "$FILE_PERMS" != "600" ] && [ "$FILE_PERMS" != "400" ]; then
-        echo -e "${RED}WARNING: Password file has insecure permissions: $FILE_PERMS${NC}"
-        echo -e "${YELLOW}Recommended: chmod 600 $PASSWORD_FILE_TO_USE${NC}"
-        echo -e "${YELLOW}Continuing anyway...${NC}"
-    fi
-
-    # Read password from file (first line only, trim whitespace)
-    SAMBA_PASSWORD=$(head -n 1 "$PASSWORD_FILE_TO_USE" | tr -d '\n\r')
-
-    # Verify password was read successfully
-    if [ -z "$SAMBA_PASSWORD" ]; then
-        echo -e "${RED}ERROR: Password file is empty or unreadable${NC}"
-        exit 1
-    fi
-
-    echo -e "${GREEN}Password loaded successfully${NC}"
-else
-    # No password file available - prompt user
-    if [ -n "$SAMBA_PASSWORD_FILE" ]; then
-        echo -e "${YELLOW}Custom password file not found: $SAMBA_PASSWORD_FILE${NC}"
-    fi
-
-    echo -e "${YELLOW}Tip: You can create $DEFAULT_PASSWORD_FILE to skip password prompt${NC}"
-
-    # Prompt for Samba password securely (input hidden)
+# Get Samba password - check if already set in .env, otherwise prompt
+if [ -z "$SAMBA_PASSWORD" ]; then
+    # Password not in .env file, prompt user
+    echo -e "${YELLOW}Tip: Add SAMBA_PASSWORD=\"your-password\" to $DEFAULT_ENV_FILE to skip this prompt${NC}"
     echo -e "${YELLOW}Enter password for Samba user '${SAMBA_USER}':${NC}"
     read -s SAMBA_PASSWORD
     echo
+
+    # Verify password was entered
+    if [ -z "$SAMBA_PASSWORD" ]; then
+        echo -e "${RED}ERROR: No password provided${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}Password loaded from .env file${NC}"
 fi
 
 # Create base mount directory if it doesn't exist

@@ -28,15 +28,30 @@ cd linux/samba
 # Create your customized version
 cp mount-samba-shares.sh.example mount-samba-shares.sh
 
-# Edit the configuration
-nano mount-samba-shares.sh
+# Make it executable
+chmod +x mount-samba-shares.sh
 ```
 
 ## Configuration
 
-Edit the script and customize these variables:
+The script uses a `.env` file for configuration, making it easy to reuse for different environments.
 
-### Basic Settings
+### Option 1: Using .env File (Recommended)
+
+Create a configuration file in your home directory:
+
+```bash
+# Copy the example configuration
+cp .env.example ~/.env
+
+# Edit your configuration
+nano ~/.env
+
+# Secure the file (important for password protection!)
+chmod 600 ~/.env
+```
+
+Edit `~/.env` and customize these variables:
 
 ```bash
 # Your Samba server hostname or IP
@@ -45,26 +60,28 @@ SAMBA_SERVER="your-nas-server.local"
 # Your Samba username
 SAMBA_USER="your-username"
 
+# Your Samba password
+SAMBA_PASSWORD="your-password"
+
 # Workgroup (usually WORKGROUP for home networks)
 SAMBA_WORKGROUP="WORKGROUP"
 
 # Where to mount the shares
 MOUNT_BASE="/media/samba"
 
-# Optional: Path to password file (leave empty to be prompted)
-SAMBA_PASSWORD_FILE=""
-```
-
-### Define Your Shares
-
-```bash
+# Define your shares
 SHARES=(
-    "share_name:mount_folder:bookmark_name"
     "public:Public:Public Share"
     "documents:Documents:My Documents"
     "media:Media:Media Files"
 )
 ```
+
+### Option 2: Edit the Script Directly
+
+If you prefer, you can edit the script directly. The script will use default values if no `.env` file is found.
+
+### Share Format
 
 Format: `"samba_share_name:local_folder_name:bookmark_display_name"`
 
@@ -77,16 +94,16 @@ Format: `"samba_share_name:local_folder_name:bookmark_display_name"`
 ### Run the Script
 
 ```bash
-chmod +x mount-samba-shares.sh
 sudo ./mount-samba-shares.sh
 ```
 
 The script will:
-1. Prompt for your Samba password
-2. Install cifs-utils if needed
-3. Create mount directories
-4. Mount all configured shares
-5. Add bookmarks to Nemo
+1. Load configuration from `~/.env` (if it exists)
+2. Prompt for your Samba password (if not in .env file)
+3. Install cifs-utils if needed
+4. Create mount directories
+5. Mount all configured shares
+6. Add bookmarks to Nemo
 
 ### View Bookmarks
 
@@ -111,64 +128,19 @@ To unmount a specific share:
 sudo umount /media/samba/Documents
 ```
 
-## Using a Password File (Optional)
+## How It Works
 
-For automated mounting without user interaction, you can store the password in a file.
+1. **Configuration Loading**: The script checks for `~/.env` in your home directory
+2. **Password Handling**: If `SAMBA_PASSWORD` is not set in the .env file, you'll be prompted
+3. **Mounting**: Each share is mounted to its specified location
+4. **Bookmarks**: Successfully mounted shares are added to Nemo's sidebar
 
-### Option 1: User Home Directory (Recommended)
+### Benefits of .env Configuration
 
-The script automatically checks for `~/.samba-password` in your home directory:
-
-```bash
-# Create the password file in your home directory
-nano ~/.samba-password
-
-# Add only your password (one line, no username)
-your-password-here
-
-# Save and exit (Ctrl+X, Y, Enter)
-
-# Secure the file (readable only by you)
-chmod 600 ~/.samba-password
-```
-
-Now run the script - no password prompt!
-```bash
-sudo ./mount-samba-shares.sh
-# Password automatically loaded from ~/.samba-password
-```
-
-### Option 2: Custom Location
-
-You can also specify a custom password file location:
-
-```bash
-# Create password file at custom location
-sudo nano /etc/samba-password
-# Add your password
-
-# Secure the file
-sudo chmod 600 /etc/samba-password
-
-# Configure the script
-# Edit mount-samba-shares.sh and set:
-SAMBA_PASSWORD_FILE="/etc/samba-password"
-```
-
-### Priority Order
-
-The script checks for passwords in this order:
-1. Custom `SAMBA_PASSWORD_FILE` (if configured in script)
-2. `~/.samba-password` (in user's home directory)
-3. Interactive prompt (if no file found)
-
-### Security Notes
-
-- The script checks file permissions and warns if they're insecure (should be 600)
-- Only the first line of the file is used
-- The script displays which file it's reading from
-- Never commit password files to version control
-- `~/.samba-password` is automatically ignored by git (in user home, not in repo)
+- **Reusable**: Easy to use the same configuration across different machines
+- **Secure**: Keep all sensitive data in one file with proper permissions (600)
+- **Flexible**: Override any setting without editing the script
+- **Portable**: Simply copy `~/.env` to another system
 
 ## Making Mounts Permanent (Optional)
 
