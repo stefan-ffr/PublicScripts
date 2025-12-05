@@ -1,0 +1,17 @@
+# Environment configuration
+.env
+
+# Storage volumes (Windows installations)
+storage/
+
+# Backup files
+*.tar.gz
+*.zip
+*.bak
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
