@@ -113,47 +113,62 @@ sudo umount /media/samba/Documents
 
 ## Using a Password File (Optional)
 
-For automated mounting without user interaction, you can store the password in a file:
+For automated mounting without user interaction, you can store the password in a file.
 
-### Create Password File
+### Option 1: User Home Directory (Recommended)
+
+The script automatically checks for `~/.samba-password` in your home directory:
 
 ```bash
-# Create the password file
-sudo nano /etc/samba-password
+# Create the password file in your home directory
+nano ~/.samba-password
 
 # Add only your password (one line, no username)
 your-password-here
 
 # Save and exit (Ctrl+X, Y, Enter)
+
+# Secure the file (readable only by you)
+chmod 600 ~/.samba-password
 ```
 
-### Secure the File
+Now run the script - no password prompt!
+```bash
+sudo ./mount-samba-shares.sh
+# Password automatically loaded from ~/.samba-password
+```
+
+### Option 2: Custom Location
+
+You can also specify a custom password file location:
 
 ```bash
-# Set restrictive permissions (readable only by root)
+# Create password file at custom location
+sudo nano /etc/samba-password
+# Add your password
+
+# Secure the file
 sudo chmod 600 /etc/samba-password
-```
 
-### Configure Script
-
-Edit your script and set:
-```bash
+# Configure the script
+# Edit mount-samba-shares.sh and set:
 SAMBA_PASSWORD_FILE="/etc/samba-password"
 ```
 
-### Run Without Password Prompt
+### Priority Order
 
-Now the script will read the password from the file:
-```bash
-sudo ./mount-samba-shares.sh
-# No password prompt! Password loaded from file
-```
+The script checks for passwords in this order:
+1. Custom `SAMBA_PASSWORD_FILE` (if configured in script)
+2. `~/.samba-password` (in user's home directory)
+3. Interactive prompt (if no file found)
 
-**Security Notes:**
-- The script checks file permissions and warns if they're insecure
-- Only the first line of the file is used (allows comments on other lines)
-- If the file doesn't exist, the script falls back to password prompt
+### Security Notes
+
+- The script checks file permissions and warns if they're insecure (should be 600)
+- Only the first line of the file is used
+- The script displays which file it's reading from
 - Never commit password files to version control
+- `~/.samba-password` is automatically ignored by git (in user home, not in repo)
 
 ## Making Mounts Permanent (Optional)
 

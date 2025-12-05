@@ -26,6 +26,7 @@ MOUNT_BASE="/media/samba"
 # If set, the password will be read from this file instead of prompting
 # File should contain only the password (no username or other data)
 # IMPORTANT: Set file permissions to 600 (readable only by owner)
+# Default: Checks ~/.samba-password (user's home directory)
 # Example: SAMBA_PASSWORD_FILE="/etc/samba-password"
 SAMBA_PASSWORD_FILE=""
 
@@ -70,22 +71,45 @@ if ! command -v mount.cifs &> /dev/null; then
     echo -e "${GREEN}cifs-utils installed successfully${NC}"
 fi
 
+# Get the actual user who invoked sudo (not root)
+# Determine the user's home directory
+if [ -n "$SUDO_USER" ]; then
+    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+else
+    USER_HOME="$HOME"
+fi
+
+# Default password file location in user's home directory
+DEFAULT_PASSWORD_FILE="$USER_HOME/.samba-password"
+
+# Determine which password file to use
+if [ -n "$SAMBA_PASSWORD_FILE" ]; then
+    # User has configured a custom password file path
+    PASSWORD_FILE_TO_USE="$SAMBA_PASSWORD_FILE"
+elif [ -f "$DEFAULT_PASSWORD_FILE" ]; then
+    # Use default location if it exists
+    PASSWORD_FILE_TO_USE="$DEFAULT_PASSWORD_FILE"
+else
+    # No password file available
+    PASSWORD_FILE_TO_USE=""
+fi
+
 # Get Samba password - either from file or prompt
-if [ -n "$SAMBA_PASSWORD_FILE" ] && [ -f "$SAMBA_PASSWORD_FILE" ]; then
-    # Password file is configured and exists
-    echo -e "${GREEN}Reading password from file: $SAMBA_PASSWORD_FILE${NC}"
+if [ -n "$PASSWORD_FILE_TO_USE" ] && [ -f "$PASSWORD_FILE_TO_USE" ]; then
+    # Password file exists
+    echo -e "${GREEN}Reading password from file: $PASSWORD_FILE_TO_USE${NC}"
 
     # Check file permissions for security
     # File should be readable only by owner (600 or 400)
-    FILE_PERMS=$(stat -c "%a" "$SAMBA_PASSWORD_FILE")
+    FILE_PERMS=$(stat -c "%a" "$PASSWORD_FILE_TO_USE")
     if [ "$FILE_PERMS" != "600" ] && [ "$FILE_PERMS" != "400" ]; then
         echo -e "${RED}WARNING: Password file has insecure permissions: $FILE_PERMS${NC}"
-        echo -e "${YELLOW}Recommended: chmod 600 $SAMBA_PASSWORD_FILE${NC}"
+        echo -e "${YELLOW}Recommended: chmod 600 $PASSWORD_FILE_TO_USE${NC}"
         echo -e "${YELLOW}Continuing anyway...${NC}"
     fi
 
     # Read password from file (first line only, trim whitespace)
-    SAMBA_PASSWORD=$(head -n 1 "$SAMBA_PASSWORD_FILE" | tr -d '\n\r')
+    SAMBA_PASSWORD=$(head -n 1 "$PASSWORD_FILE_TO_USE" | tr -d '\n\r')
 
     # Verify password was read successfully
     if [ -z "$SAMBA_PASSWORD" ]; then
@@ -95,11 +119,12 @@ if [ -n "$SAMBA_PASSWORD_FILE" ] && [ -f "$SAMBA_PASSWORD_FILE" ]; then
 
     echo -e "${GREEN}Password loaded successfully${NC}"
 else
-    # No password file configured or file doesn't exist - prompt user
+    # No password file available - prompt user
     if [ -n "$SAMBA_PASSWORD_FILE" ]; then
-        echo -e "${YELLOW}Password file not found: $SAMBA_PASSWORD_FILE${NC}"
-        echo -e "${YELLOW}Falling back to password prompt${NC}"
+        echo -e "${YELLOW}Custom password file not found: $SAMBA_PASSWORD_FILE${NC}"
     fi
+
+    echo -e "${YELLOW}Tip: You can create $DEFAULT_PASSWORD_FILE to skip password prompt${NC}"
 
     # Prompt for Samba password securely (input hidden)
     echo -e "${YELLOW}Enter password for Samba user '${SAMBA_USER}':${NC}"
