@@ -34,6 +34,8 @@ services:
         ipv4_address: ${IP_USER1:-192.168.1.130}
     volumes:
       - ${STORAGE_PATH:-./storage}/user1:/storage  # Persistent storage for Windows installation
+      - ./unattend.xml:/oem/unattend.xml:ro        # Automated installation configuration
+      - ./post-install.ps1:/oem/post-install.ps1:ro # Post-installation script
     stop_grace_period: 2m  # Give Windows time to shut down properly
     restart: unless-stopped
     labels:
@@ -60,6 +62,8 @@ services:
         ipv4_address: ${IP_USER2:-192.168.1.131}
     volumes:
       - ${STORAGE_PATH:-./storage}/user2:/storage
+      - ./unattend.xml:/oem/unattend.xml:ro
+      - ./post-install.ps1:/oem/post-install.ps1:ro
     stop_grace_period: 2m
     restart: unless-stopped
     labels:
@@ -86,6 +90,8 @@ services:
         ipv4_address: ${IP_USER3:-192.168.1.132}
     volumes:
       - ${STORAGE_PATH:-./storage}/user3:/storage
+      - ./unattend.xml:/oem/unattend.xml:ro
+      - ./post-install.ps1:/oem/post-install.ps1:ro
     stop_grace_period: 2m
     restart: unless-stopped
     labels:

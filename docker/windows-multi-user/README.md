@@ -4,7 +4,10 @@ Run multiple Windows 11 Pro instances in Docker containers with individual IP ad
 
 ## Features
 
-- **User-Specific Windows Instances** - Each user gets their own dedicated Windows 11 Pro container
+- **Automated Installation** - Unattended Windows setup with pre-configured users and software
+- **Pre-Installed Software** - Chocolatey, Google Chrome, and Bitwarden ready to use
+- **Multi-User Support** - 3 user accounts (user1, user2, user3) + Administrator pre-configured
+- **User-Specific Windows Instances** - Each container is dedicated Windows 11 Pro environment
 - **Macvlan Networking** - Each container has its own IP address on your local network
 - **RDP Access** - Native Remote Desktop Protocol support for all platforms
 - **Resource Management** - Configurable RAM, CPU, and disk allocation per user
@@ -167,7 +170,9 @@ chmod +x manage.sh
 This will:
 1. Create storage volumes for each user
 2. Start all three Windows containers
-3. Begin Windows 11 installation (takes 20-40 minutes)
+3. Begin automated Windows 11 installation (takes 20-40 minutes)
+4. Automatically install Chocolatey, Google Chrome, and Bitwarden
+5. Create user accounts (user1, user2, user3) and Administrator
 
 ### Monitor Installation Progress
 
@@ -202,10 +207,18 @@ Shows:
 
 After Windows installation completes (20-40 minutes):
 
-**Default Credentials:**
-- Username: `Docker`
-- Password: `admin`
-- **⚠️ IMPORTANT:** Change this password immediately after first login!
+**⚠️ DEFAULT CREDENTIALS - CHANGE IMMEDIATELY!**
+
+The automated installation creates these accounts:
+
+| Username      | Password    | Access Level  |
+|---------------|-------------|---------------|
+| Administrator | Admin@123   | Administrator |
+| user1         | User1@123   | Administrator |
+| user2         | User2@123   | Administrator |
+| user3         | User3@123   | Administrator |
+
+See [PASSWORDS.md](PASSWORDS.md) for detailed password management information.
 
 **Connection Methods:**
 
@@ -297,11 +310,68 @@ mstsc /v:192.168.1.130:3389
 ./manage.sh nuke
 ```
 
+## Automated Installation Features
+
+The setup includes automated Windows configuration using **unattend.xml** and **post-install.ps1**:
+
+### What Gets Installed Automatically
+
+✅ **Windows 11 Pro** - Fully automated installation
+✅ **Language Settings** - German (de-DE) locale and keyboard
+✅ **User Accounts** - 3 users + Administrator pre-configured
+✅ **Remote Desktop** - Enabled and configured
+✅ **Chocolatey** - Package manager for Windows
+✅ **Google Chrome** - Web browser
+✅ **Bitwarden** - Password manager
+✅ **Desktop Shortcuts** - For Chrome and Bitwarden
+✅ **Windows Update** - Disabled (to prevent unexpected updates)
+✅ **Windows Defender** - Real-time protection disabled (optional)
+
+### Installation Process
+
+1. **Phase 1 (0-15 min)**: Windows installation from ISO
+2. **Phase 2 (15-25 min)**: OOBE (Out-of-Box Experience) configuration
+3. **Phase 3 (25-40 min)**: Post-install script execution
+   - Chocolatey installation
+   - Software installation (Chrome, Bitwarden)
+   - System configuration
+4. **Complete (~40 min)**: Ready for RDP login
+
+### Installation Log
+
+After installation completes, check `C:\post-install.log` inside Windows for details.
+
+## Pre-Configured User Accounts
+
+Each container has 4 user accounts ready to use:
+
+- **Administrator** - System administrator account
+- **user1** - First user (for User 1)
+- **user2** - Second user (for User 2)
+- **user3** - Third user (for User 3)
+
+All accounts:
+- Have **Administrator privileges**
+- Passwords **never expire**
+- Can login via **RDP**
+- Use different users **sequentially** (Windows 11 Pro = 1 RDP session at a time)
+
+### Sequential Login Behavior
+
+**Important:** Windows 11 Pro only allows **one RDP session at a time** per container:
+- When user2 logs in, user1 is automatically logged out
+- Users should **save their work** before logging out
+- For **simultaneous access**, use different containers
+
 ## Post-Installation Setup
 
-### 1. Change Default Password
+### 1. Change Default Passwords
 
-**Immediately after first RDP login:**
+**⚠️ CRITICAL: Change all default passwords immediately!**
+
+See [PASSWORDS.md](PASSWORDS.md) for complete password management guide.
+
+**Quick password change:**
 
 ```cmd
 # Open Command Prompt as Administrator
