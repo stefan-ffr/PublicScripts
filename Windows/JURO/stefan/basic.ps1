@@ -15,7 +15,8 @@ $programme = @(
     "7zip",
     "git",
     "vscode",
-    "notepadplusplus"
+    "notepadplusplus",
+    "bitwarden"
 )
 
 # Programme installieren
