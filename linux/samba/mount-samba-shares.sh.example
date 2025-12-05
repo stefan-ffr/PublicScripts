@@ -1,24 +1,26 @@
 #!/bin/bash
 #
 # Samba Share Mounting Script for Linux Mint 22
-# Automatically mounts Samba/CIFS network shares and adds them as bookmarks in Nemo file manager
-# Requires: cifs-utils package
+# Mounts Samba/CIFS network shares in user space (no sudo required)
+# Uses GVFS/GIO for user-specific mounts that automatically appear in Nemo
+# Requires: gvfs-backends package
 #
 
 ##########################################################################################################################################
 # CONFIGURATION - Load from .env file or use defaults
 ##########################################################################################################################################
 
-# Get the actual user who invoked sudo (not root)
-# Determine the user's home directory for .env file location
-if [ -n "$SUDO_USER" ]; then
-    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-else
-    USER_HOME="$HOME"
-fi
+# Get user's home directory for .env file location
+USER_HOME="$HOME"
 
 # Default .env file location in user's home directory
 DEFAULT_ENV_FILE="$USER_HOME/.env"
+
+# Color codes for output (define early for use in config section)
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
 # Check if .env file exists and load it
 if [ -f "$DEFAULT_ENV_FILE" ]; then
@@ -42,20 +44,17 @@ SAMBA_USER="${SAMBA_USER:-your-username}"
 # Can be overridden in .env file
 SAMBA_WORKGROUP="${SAMBA_WORKGROUP:-WORKGROUP}"
 
-# Base directory where shares will be mounted
-# Can be overridden in .env file
-MOUNT_BASE="${MOUNT_BASE:-/media/samba}"
-
 # Define your Samba shares as an array
-# Format: "share_name:mount_folder_name:bookmark_display_name"
-# Can be overridden in .env file as SHARES=("share1:folder1:name1" "share2:folder2:name2")
+# Format: "share_name:bookmark_display_name"
+# Note: GVFS handles mount paths automatically in ~/.gvfs or /run/user/$UID/gvfs
+# Can be overridden in .env file as SHARES=("share1:name1" "share2:name2")
 if [ -z "${SHARES+x}" ]; then
     # Default shares if not defined in .env
     SHARES=(
-        "public:Public:Public Share"
-        "documents:Documents:My Documents"
-        "media:Media:Media Files"
-        "backups:Backups:Backup Storage"
+        "public:Public Share"
+        "documents:My Documents"
+        "media:Media Files"
+        "backups:Backup Storage"
     )
 fi
 
@@ -63,31 +62,24 @@ fi
 # SCRIPT START - DO NOT MODIFY BELOW UNLESS YOU KNOW WHAT YOU'RE DOING
 ##########################################################################################################################################
 
-# Color codes for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-# Check if the script is run with sudo/root privileges
-# Required for creating mount points and mounting shares
-if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}ERROR: This script must be run as root or with sudo${NC}"
-    echo "Usage: sudo $0"
-    exit 1
-fi
-
-# Check if cifs-utils is installed
-# This package provides the mount.cifs command needed to mount Samba shares
-if ! command -v mount.cifs &> /dev/null; then
-    echo -e "${YELLOW}cifs-utils is not installed. Installing...${NC}"
-    apt update
-    apt install -y cifs-utils
+# Check if gvfs-backends is installed
+# This package provides GVFS support for mounting Samba shares
+if ! dpkg -l | grep -q gvfs-backends; then
+    echo -e "${YELLOW}gvfs-backends is not installed. Installing...${NC}"
+    sudo apt update
+    sudo apt install -y gvfs-backends
     if [ $? -ne 0 ]; then
-        echo -e "${RED}ERROR: Failed to install cifs-utils${NC}"
+        echo -e "${RED}ERROR: Failed to install gvfs-backends${NC}"
         exit 1
     fi
-    echo -e "${GREEN}cifs-utils installed successfully${NC}"
+    echo -e "${GREEN}gvfs-backends installed successfully${NC}"
+fi
+
+# Check if gio command is available
+# gio is the command-line interface to GVFS
+if ! command -v gio &> /dev/null; then
+    echo -e "${RED}ERROR: gio command not found. Please install gvfs-bin package.${NC}"
+    exit 1
 fi
 
 # Get Samba password - check if already set in .env, otherwise prompt
@@ -107,129 +99,82 @@ else
     echo -e "${GREEN}Password loaded from .env file${NC}"
 fi
 
-# Create base mount directory if it doesn't exist
-if [ ! -d "$MOUNT_BASE" ]; then
-    echo -e "${YELLOW}Creating base mount directory: $MOUNT_BASE${NC}"
-    mkdir -p "$MOUNT_BASE"
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}ERROR: Failed to create directory $MOUNT_BASE${NC}"
-        exit 1
-    fi
-fi
-
-# Get the actual user who invoked sudo (not root)
-# This is important for setting correct ownership and adding bookmarks to the right user
-ACTUAL_USER="${SUDO_USER:-$USER}"
-ACTUAL_UID=$(id -u "$ACTUAL_USER")
-ACTUAL_GID=$(id -g "$ACTUAL_USER")
-
-echo -e "${GREEN}Mounting Samba shares for user: $ACTUAL_USER${NC}"
+echo -e "${GREEN}Mounting Samba shares for user: $USER${NC}"
 echo "---------------------------------------------------"
 
-# Array to store successfully mounted shares for bookmark creation
-MOUNTED_PATHS=()
-BOOKMARK_NAMES=()
+# Array to store successfully mounted shares
+MOUNTED_URIS=()
+MOUNT_SUCCESS=0
 
 # Loop through each defined share
 for SHARE_INFO in "${SHARES[@]}"; do
     # Split the share info by colon
-    IFS=':' read -r SHARE_NAME MOUNT_FOLDER BOOKMARK_NAME <<< "$SHARE_INFO"
+    # New format: "share_name:bookmark_display_name"
+    IFS=':' read -r SHARE_NAME BOOKMARK_NAME <<< "$SHARE_INFO"
 
-    # Full path where this share will be mounted
-    MOUNT_POINT="$MOUNT_BASE/$MOUNT_FOLDER"
-
-    # UNC path to the Samba share
-    SHARE_PATH="//$SAMBA_SERVER/$SHARE_NAME"
-
-    echo -e "${YELLOW}Processing share: $SHARE_NAME${NC}"
-
-    # Create mount point directory if it doesn't exist
-    if [ ! -d "$MOUNT_POINT" ]; then
-        mkdir -p "$MOUNT_POINT"
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}  ERROR: Failed to create mount point $MOUNT_POINT${NC}"
-            continue
-        fi
+    # Construct SMB URI for gio mount
+    # Format: smb://[workgroup;]username@server/share
+    if [ -n "$SAMBA_WORKGROUP" ] && [ "$SAMBA_WORKGROUP" != "WORKGROUP" ]; then
+        SMB_URI="smb://${SAMBA_WORKGROUP};${SAMBA_USER}@${SAMBA_SERVER}/${SHARE_NAME}"
+    else
+        SMB_URI="smb://${SAMBA_USER}@${SAMBA_SERVER}/${SHARE_NAME}"
     fi
 
-    # Check if the share is already mounted
-    if mountpoint -q "$MOUNT_POINT"; then
-        echo -e "${YELLOW}  Share already mounted at $MOUNT_POINT${NC}"
-        MOUNTED_PATHS+=("$MOUNT_POINT")
-        BOOKMARK_NAMES+=("$BOOKMARK_NAME")
+    echo -e "${YELLOW}Processing share: $SHARE_NAME${NC}"
+    echo -e "  URI: $SMB_URI"
+
+    # Check if already mounted using gio mount -l
+    if gio mount -l | grep -q "$SMB_URI"; then
+        echo -e "${YELLOW}  Share already mounted${NC}"
+        MOUNTED_URIS+=("$SMB_URI")
+        MOUNT_SUCCESS=$((MOUNT_SUCCESS + 1))
         continue
     fi
 
-    # Mount the Samba share
-    # Options explained:
-    # - username: Samba username for authentication
-    # - password: Samba password (passed securely)
-    # - workgroup: Windows workgroup/domain
-    # - uid/gid: Set ownership to the actual user (not root)
-    # - file_mode/dir_mode: Set permissions (0755 = rwxr-xr-x)
-    # - iocharset: Character encoding (utf8 for international characters)
-    mount -t cifs "$SHARE_PATH" "$MOUNT_POINT" \
-        -o username="$SAMBA_USER",password="$SAMBA_PASSWORD",workgroup="$SAMBA_WORKGROUP",uid="$ACTUAL_UID",gid="$ACTUAL_GID",file_mode=0755,dir_mode=0755,iocharset=utf8
+    # Mount the share using gio mount
+    # gio mount handles authentication interactively, but we can use expect or pass credentials via URI
+    # For non-interactive mounting, we need to store credentials in GNOME Keyring or use a helper
 
-    # Check if mount was successful
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}  Successfully mounted: $SHARE_PATH -> $MOUNT_POINT${NC}"
-        MOUNTED_PATHS+=("$MOUNT_POINT")
-        BOOKMARK_NAMES+=("$BOOKMARK_NAME")
+    # Try mounting with password in URI (less secure but works without interaction)
+    # URL-encode the password for special characters
+    ENCODED_PASSWORD=$(printf %s "$SAMBA_PASSWORD" | jq -sRr @uri 2>/dev/null || echo "$SAMBA_PASSWORD")
+
+    if [ -n "$SAMBA_WORKGROUP" ] && [ "$SAMBA_WORKGROUP" != "WORKGROUP" ]; then
+        MOUNT_URI="smb://${SAMBA_WORKGROUP};${SAMBA_USER}:${ENCODED_PASSWORD}@${SAMBA_SERVER}/${SHARE_NAME}"
     else
-        echo -e "${RED}  ERROR: Failed to mount $SHARE_PATH${NC}"
-        # Remove empty mount point
-        rmdir "$MOUNT_POINT" 2>/dev/null
+        MOUNT_URI="smb://${SAMBA_USER}:${ENCODED_PASSWORD}@${SAMBA_SERVER}/${SHARE_NAME}"
+    fi
+
+    # Attempt to mount the share
+    # gio mount will create the mount in /run/user/$UID/gvfs/ automatically
+    gio mount "$MOUNT_URI" 2>&1 | while IFS= read -r line; do
+        echo "    $line"
+    done
+
+    # Check if mount was successful by checking gio mount -l
+    sleep 1  # Give GVFS a moment to register the mount
+    if gio mount -l | grep -q "$(echo $SMB_URI | sed 's/:.*@/@/')"; then
+        echo -e "${GREEN}  Successfully mounted: $SMB_URI${NC}"
+        MOUNTED_URIS+=("$SMB_URI")
+        MOUNT_SUCCESS=$((MOUNT_SUCCESS + 1))
+
+        # GVFS automatically adds bookmarks to Nemo, but we can verify
+        # The mount point is in /run/user/$UID/gvfs/
+        GVFS_MOUNT=$(gio mount -l | grep "$SHARE_NAME" | grep "Mount(" | sed 's/.*-> //' || echo "")
+        if [ -n "$GVFS_MOUNT" ]; then
+            echo -e "  ${GREEN}Mount point: $GVFS_MOUNT${NC}"
+        fi
+    else
+        echo -e "${RED}  ERROR: Failed to mount $SMB_URI${NC}"
+        echo -e "${YELLOW}  Tip: Check server name, share name, username, and password${NC}"
     fi
 done
 
 echo "---------------------------------------------------"
-
-# Add bookmarks to Nemo file manager
-# Nemo uses GTK bookmarks stored in ~/.config/gtk-3.0/bookmarks
-BOOKMARK_FILE="/home/$ACTUAL_USER/.config/gtk-3.0/bookmarks"
-BOOKMARK_DIR=$(dirname "$BOOKMARK_FILE")
-
-# Create the config directory if it doesn't exist
-if [ ! -d "$BOOKMARK_DIR" ]; then
-    echo -e "${YELLOW}Creating GTK config directory for user $ACTUAL_USER${NC}"
-    sudo -u "$ACTUAL_USER" mkdir -p "$BOOKMARK_DIR"
-fi
-
-# Create or read existing bookmarks
-if [ ! -f "$BOOKMARK_FILE" ]; then
-    sudo -u "$ACTUAL_USER" touch "$BOOKMARK_FILE"
-fi
-
-# Read existing bookmarks to avoid duplicates
-existing_bookmarks=$(cat "$BOOKMARK_FILE" 2>/dev/null || echo "")
-
-# Add bookmarks for each successfully mounted share
-echo -e "${GREEN}Adding bookmarks to Nemo file manager...${NC}"
-for i in "${!MOUNTED_PATHS[@]}"; do
-    MOUNT_POINT="${MOUNTED_PATHS[$i]}"
-    BOOKMARK_NAME="${BOOKMARK_NAMES[$i]}"
-
-    # Convert file path to URI format (file://)
-    BOOKMARK_URI="file://$MOUNT_POINT $BOOKMARK_NAME"
-
-    # Check if bookmark already exists
-    if echo "$existing_bookmarks" | grep -q "file://$MOUNT_POINT"; then
-        echo -e "${YELLOW}  Bookmark already exists: $BOOKMARK_NAME${NC}"
-    else
-        # Add bookmark
-        echo "$BOOKMARK_URI" | sudo -u "$ACTUAL_USER" tee -a "$BOOKMARK_FILE" > /dev/null
-        echo -e "${GREEN}  Added bookmark: $BOOKMARK_NAME${NC}"
-    fi
-done
-
-# Set correct ownership and permissions for bookmark file
-chown "$ACTUAL_USER":"$ACTUAL_USER" "$BOOKMARK_FILE"
-chmod 644 "$BOOKMARK_FILE"
-
-echo "---------------------------------------------------"
-echo -e "${GREEN}Done! Samba shares have been mounted and bookmarks added.${NC}"
-echo -e "${YELLOW}Note: You may need to restart Nemo or press F5 to see the bookmarks.${NC}"
+echo -e "${GREEN}Done! $MOUNT_SUCCESS share(s) mounted successfully.${NC}"
+echo -e "${YELLOW}Note: Mounted shares appear automatically in Nemo's sidebar under 'Network'${NC}"
 echo ""
-echo "To unmount all shares, run: sudo umount $MOUNT_BASE/*"
-echo "To make mounts permanent, add entries to /etc/fstab"
+echo "Useful commands:"
+echo "  gio mount -l           # List all mounted filesystems"
+echo "  gio mount -u <URI>     # Unmount a specific share"
+echo "  gio mount -u smb://${SAMBA_USER}@${SAMBA_SERVER}/<share>  # Example unmount"
