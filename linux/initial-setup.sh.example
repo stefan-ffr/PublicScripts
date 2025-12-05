@@ -1,0 +1,96 @@
+#!/bin/bash
+#
+# Initial Server Setup Script
+# This script automates the initial provisioning of a new Linux server
+# Customize the variables below before running
+#
+
+# Get the primary IP address of this server
+# hostname -I lists all IP addresses, awk extracts the first one
+IPADDR=$(hostname -I | awk '{print $1}')
+
+##########################################################################################################################################
+# CUSTOMIZE THESE VARIABLES BEFORE RUNNING:
+##########################################################################################################################################
+
+# Base URL to a webserver hosting configuration files
+# This server should contain user-specific files like SSH keys and sudo configs
+WEBSTOREURL="https://your-webserver.com/files"
+
+# Username for the administrative user that will be created
+# This user will have sudo privileges for server management
+MANAGING_USER="admin"
+
+# Temporary path where the SSH provision key will be stored
+# This key is used to register the server with your NAS and then deleted
+PROVISIONKEY="/tmp/provision_key"
+
+# NAS server hostname or IP address
+# Used to register this server's IP in a central server list
+NAS="your-nas-server.com"
+
+##########################################################################################################################################
+
+# Remove deprecated authorized_keys2 file if it exists
+# Modern SSH uses authorized_keys only
+rm /root/.ssh/authorized_keys2
+
+# Update the package repository information
+apt-get update
+
+# Upgrade all installed packages to their latest versions
+# -y flag automatically answers "yes" to prompts
+apt-get upgrade -y
+
+# Remove packages that were automatically installed as dependencies
+# but are no longer needed
+apt-get autoremove -y
+
+# Install essential utility software for server management:
+# - sudo: Allows users to run commands with elevated privileges
+# - curl: Command-line tool for transferring data with URLs
+# - git: Version control system
+# - gnupg2: GNU Privacy Guard for encryption and signing
+# - wget: Command-line tool for downloading files
+# - qemu-guest-agent: Improves integration with QEMU/KVM virtualization
+# - cloud-init: Handles early initialization of cloud instances
+apt-get install sudo curl git gnupg2 wget qemu-guest-agent cloud-init -y
+
+# Create a new user for server management
+# -m flag creates the user's home directory
+useradd -m $MANAGING_USER
+
+# Create the .ssh directory for SSH configuration and keys
+mkdir /home/$MANAGING_USER/.ssh
+
+# Add the managing user to the sudo group
+# This grants administrative privileges to the user
+usermod -aG sudo $MANAGING_USER
+
+# Download essential configuration files from the webserver
+# These files should be prepared in advance on your webserver
+
+# Download and install SSH authorized_keys for the managing user
+# This allows SSH login with the corresponding private key
+wget $WEBSTOREURL/$MANAGING_USER/authorized_keys -O /home/$MANAGING_USER/.ssh/authorized_keys
+
+# Download and install custom sudo configuration
+# This file defines what sudo commands the user can run
+wget $WEBSTOREURL/$MANAGING_USER/servermanager-sudo -O /etc/sudoers.d/servermanager-sudo
+
+# Download the SSH provision key
+# This temporary key is used to register this server with the NAS
+wget $WEBSTOREURL/$MANAGING_USER/servermanagerprovision -O $PROVISIONKEY
+
+# Set strict permissions on the provision key (readable only by owner)
+# SSH requires private keys to have restricted permissions
+chmod 600 $PROVISIONKEY
+
+# Register this server's IP address on the NAS
+# Appends the IP to a central server list file on the NAS
+# CUSTOMIZE THE PATH: Replace "/path/to/serverlist.txt" with your actual path
+ssh -i $PROVISIONKEY $MANAGING_USER@$NAS "/bin/echo -e $IPADDR >> /path/to/serverlist.txt"
+
+# Remove the provision key for security
+# Once registration is complete, the key is no longer needed
+rm $PROVISIONKEY

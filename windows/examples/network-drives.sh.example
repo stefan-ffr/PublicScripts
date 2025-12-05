@@ -1,0 +1,45 @@
+#!/bin/bash
+#
+# Network Drive Mapping Script for Windows
+# Maps network shares as Windows drive letters
+# Run this script via Git Bash or WSL on Windows
+#
+
+# Display command being executed (helpful for debugging)
+@echo
+
+# Remove all existing network drive mappings
+# * = all mapped drives
+# /delete = disconnect the drives
+# -y = automatically answer yes to confirmation prompts
+net use * /delete -y
+
+##########################################################################################################################################
+# CUSTOMIZE THESE DRIVE MAPPINGS FOR YOUR NETWORK ENVIRONMENT
+##########################################################################################################################################
+
+# Map network drives using the 'net use' command
+# Syntax: net use [drive letter] [UNC path] /persistent:yes
+# /persistent:yes = reconnect the drive automatically on login
+
+# Drive A: Personal user folder
+# Replace \\your-nas\users\username with your actual network path
+net use A: \\your-nas\users\username /persistent:yes
+
+# Drive B: Shared group folder
+# Replace \\your-nas\groups\groupname with your actual network path
+net use B: \\your-nas\groups\groupname /persistent:yes
+
+# Drive F: Photos/Media folder
+net use F: \\your-nas\photos /persistent:yes
+
+# Drive I: IT department shared folder
+net use I: \\your-nas\IT /persistent:yes
+
+# Drive M: General media folder
+net use M: \\your-nas\media /persistent:yes
+
+# Note: You may need to provide credentials when mapping drives
+# For authenticated access, add: /user:DOMAIN\username password
+# Example: net use A: \\your-nas\share /persistent:yes /user:DOMAIN\john mypassword
+# For better security, consider using Windows Credential Manager instead of hardcoding passwords

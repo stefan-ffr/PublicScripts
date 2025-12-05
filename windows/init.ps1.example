@@ -1,0 +1,115 @@
+#
+# Windows Initial Setup Script
+# This script automates Windows workstation setup by cloning and executing user-specific scripts
+# Requires Administrator privileges
+#
+
+# Check if the script is running with Administrator privileges
+# This is required for installing software and making system-level changes
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Host "This script must be run as an Administrator." -ForegroundColor Red
+    Exit
+}
+
+# Check if Git is installed on the system
+# Get-Command tries to find the git executable
+# -ErrorAction SilentlyContinue suppresses error messages if git is not found
+if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
+    Write-Host "Git is not installed. Installing..." -ForegroundColor Yellow
+
+    # Download the Git installer from GitHub
+    # $env:TEMP is the user's temporary folder (typically C:\Users\Username\AppData\Local\Temp)
+    $InstallerPath = "$env:TEMP\Git-Installer.exe"
+    Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/latest/download/Git-2.42.0-64-bit.exe" -OutFile $InstallerPath
+
+    # Run the Git installer silently (no user interaction required)
+    # /VERYSILENT: Completely silent installation with no GUI
+    # -Wait: Wait for the installation to complete before continuing
+    Start-Process -FilePath $InstallerPath -ArgumentList "/VERYSILENT" -Wait
+
+    # Clean up: Remove the installer file
+    Remove-Item $InstallerPath
+
+    # Add Git to the system PATH environment variable if not already present
+    # This allows running git commands from any location in the command prompt
+    $gitPath = "C:\Program Files\Git\cmd"
+    if (-not ($env:Path -split ";" | ForEach-Object { $_ -like "*Git*" })) {
+        # SetEnvironmentVariable with Machine target makes the change permanent system-wide
+        [System.Environment]::SetEnvironmentVariable("Path", "$env:Path;$gitPath", [System.EnvironmentVariableTarget]::Machine)
+        # Refresh the current session's PATH variable
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
+    }
+
+    # Verify that Git was installed successfully
+    if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
+        Write-Host "Failed to install Git. Please check the installation manually." -ForegroundColor Red
+        Exit
+    }
+    Write-Host "Git installed successfully." -ForegroundColor Green
+}
+
+# Prompt the user to enter the name of their specific configuration folder
+# This allows for user-specific or computer-specific configurations
+$userFolder = Read-Host "Please enter the name of the subfolder to process"
+
+##########################################################################################################################################
+# CUSTOMIZE THIS: Replace with your repository URL
+##########################################################################################################################################
+$repoUrl = "https://github.com/yourusername/yourrepo.git"
+
+# Set the temporary folder where the repository will be cloned
+# This folder is automatically cleaned up on system restart
+$tempFolder = "$env:TEMP\PublicScripts\$userFolder"
+
+# Check if the temp folder already exists from a previous run
+if (Test-Path $tempFolder) {
+    # Remove the old folder and all its contents
+    Remove-Item -Recurse -Force $tempFolder
+}
+
+# Clone only the specified subfolder using Git sparse-checkout
+# This is more efficient than cloning the entire repository
+# --depth 1: Only fetch the latest commit (shallow clone)
+# --filter=blob:none: Don't download file contents until needed
+# --sparse: Enable sparse-checkout mode
+Write-Host "Cloning specified subfolder from repository..." -ForegroundColor Yellow
+Invoke-Expression "git clone --depth 1 --filter=blob:none --sparse $repoUrl $tempFolder"
+
+# Change to the cloned repository directory
+Set-Location -Path $tempFolder
+
+##########################################################################################################################################
+# CUSTOMIZE THIS: Adjust the path structure to match your repository layout
+##########################################################################################################################################
+# Configure sparse-checkout to only download the user-specific folder
+# This downloads only the files in secrets/windows/$userFolder
+Invoke-Expression "git sparse-checkout set secrets/windows/$userFolder"
+
+# Construct the full path to the user's script folder
+$scriptFolder = Join-Path -Path $tempFolder -ChildPath "secrets\windows\$userFolder"
+
+# Verify that the specified subfolder exists
+if (-not (Test-Path $scriptFolder)) {
+    Write-Host "The specified subfolder does not exist in the repository. Exiting." -ForegroundColor Red
+    Exit
+}
+
+# Find and execute all PowerShell scripts (.ps1) in the user folder
+# Get-ChildItem with -Recurse searches all subdirectories
+# -Filter *.ps1 only returns PowerShell script files
+Get-ChildItem -Path $scriptFolder -Filter *.ps1 -Recurse | ForEach-Object {
+    Write-Host "Executing PowerShell script: $($_.FullName)" -ForegroundColor Cyan
+    # & operator executes the script
+    # "pwsh" uses PowerShell Core (use "powershell" for Windows PowerShell 5.1)
+    & "pwsh" -File $_.FullName
+}
+
+# Find and execute all Bash scripts (.sh) in the user folder
+# Requires Windows Subsystem for Linux (WSL) to be installed
+Get-ChildItem -Path $scriptFolder -Filter *.sh -Recurse | ForEach-Object {
+    Write-Host "Executing Bash script: $($_.FullName)" -ForegroundColor Cyan
+    # Execute the bash script using WSL
+    & "wsl" bash $_.FullName
+}
+
+Write-Host "All scripts executed successfully." -ForegroundColor Green

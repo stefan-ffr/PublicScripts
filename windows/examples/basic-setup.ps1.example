@@ -1,0 +1,83 @@
+#
+# Basic Windows Setup Script with Chocolatey
+# Installs Chocolatey package manager and common software packages
+# Then executes computer-specific scripts based on hostname
+#
+
+# Check if Chocolatey package manager is already installed
+# Get-Command searches for the choco executable
+# -ErrorAction SilentlyContinue prevents error messages if not found
+if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+    Write-Host "Chocolatey wird installiert..."
+
+    # Temporarily bypass execution policy for this process only
+    # This allows the Chocolatey installation script to run
+    Set-ExecutionPolicy Bypass -Scope Process -Force
+
+    # Enable TLS 1.2 for secure HTTPS connections
+    # Required for downloading the Chocolatey installation script
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+
+    # Download and execute the Chocolatey installation script
+    # The script is fetched from the official Chocolatey website and immediately executed
+    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+} else {
+    Write-Host "Chocolatey ist bereits installiert."
+}
+
+# Define an array of software packages to install
+# These are Chocolatey package names from https://community.chocolatey.org/packages
+# Customize this list based on your needs
+$programme = @(
+    "googlechrome",      # Google Chrome web browser
+    "firefox",           # Mozilla Firefox web browser
+    "7zip",              # 7-Zip file archiver
+    "git",               # Git version control system
+    "vscode",            # Visual Studio Code editor
+    "notepadplusplus",   # Notepad++ text editor
+    "bitwarden"          # Bitwarden password manager
+)
+
+# Install each program in the list
+# Loop through the array and install packages one by one
+foreach ($programm in $programme) {
+    # choco install: Install the specified package
+    # -y: Automatically answer yes to prompts
+    # --no-progress: Don't show download progress bars (cleaner output)
+    choco install $programm -y --no-progress
+}
+
+# Get the current computer's hostname
+# $env:COMPUTERNAME is a Windows environment variable containing the computer name
+$computerName = $env:COMPUTERNAME
+Write-Host "Der Computername ist: $computerName"
+
+# Look for a directory named after this computer
+# This allows for computer-specific configurations and scripts
+$targetDirectory = "./$computerName"
+
+# Check if the computer-specific directory exists
+if (-not (Test-Path $targetDirectory)) {
+    Write-Host "Das Verzeichnis $targetDirectory existiert nicht. Skript wird beendet."
+    exit 1
+}
+
+# Find and execute all scripts in the computer-specific folder
+# Get-ChildItem lists all files recursively
+# -Include filters for PowerShell (.ps1) and Bash (.sh) scripts
+Get-ChildItem -Path $targetDirectory -Recurse -Include *.ps1,*.sh | ForEach-Object {
+    # Get the full path of each script file
+    $script = $_.FullName
+
+    # Check file extension and execute accordingly
+    if ($script -like "*.ps1") {
+        # Execute PowerShell script
+        Write-Host "PowerShell-Skript wird ausgeführt: $script"
+        # & operator executes the script file
+        & $script
+    } elseif ($script -like "*.sh") {
+        # Execute Bash script (requires bash to be installed, e.g., via Git Bash or WSL)
+        Write-Host "Bash-Skript wird ausgeführt: $script"
+        bash $script
+    }
+}

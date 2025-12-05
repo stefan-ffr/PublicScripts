@@ -1,0 +1,21 @@
+# Secrets folder - contains sensitive data
+secrets/
+
+# Environment files
+.env
+*.env
+
+# Private configuration files
+*_private.*
+*.secret.*
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+*.pub
+
+# Temporary files
+*.tmp
+*.temp
+*.log
